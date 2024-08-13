@@ -17,3 +17,4 @@ bin/
 *.log
 
 __debug_bin*
+dirtree

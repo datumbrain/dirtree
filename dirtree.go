@@ -11,18 +11,37 @@ import (
 func main() {
 	rootDir := "."
 
-	ignoreFile := filepath.Join(rootDir, ".gitignore")
-	ignoreMatcher, err := gitignore.CompileIgnoreFile(ignoreFile)
-	if err != nil && !os.IsNotExist(err) {
-		fmt.Printf("Error reading .gitignore: %v\n", err)
-		return
-	}
-
 	fmt.Println(".")
-	printTree(rootDir, "", ignoreMatcher)
+	printTree(rootDir, "", nil)
 }
 
-func printTree(root string, prefix string, ignoreMatcher *gitignore.GitIgnore) {
+func shouldIgnore(path string, ignoreMatchers []*gitignore.GitIgnore) bool {
+	for _, matcher := range ignoreMatchers {
+		if matcher.MatchesPath(path) {
+			return true
+		}
+	}
+	return false
+}
+
+func loadIgnoreMatchers(path string, parentMatchers []*gitignore.GitIgnore) []*gitignore.GitIgnore {
+	ignoreFile := filepath.Join(path, ".gitignore")
+	if _, err := os.Stat(ignoreFile); os.IsNotExist(err) {
+		return parentMatchers
+	}
+
+	ignoreMatcher, err := gitignore.CompileIgnoreFile(ignoreFile)
+	if err != nil {
+		fmt.Printf("Error reading .gitignore in %s: %v\n", path, err)
+		return parentMatchers
+	}
+
+	return append(parentMatchers, ignoreMatcher)
+}
+
+func printTree(root string, prefix string, parentMatchers []*gitignore.GitIgnore) {
+	ignoreMatchers := loadIgnoreMatchers(root, parentMatchers)
+
 	files, err := os.ReadDir(root)
 	if err != nil {
 		fmt.Printf("Error reading directory %s: %v\n", root, err)
@@ -30,8 +49,12 @@ func printTree(root string, prefix string, ignoreMatcher *gitignore.GitIgnore) {
 	}
 
 	for i, file := range files {
+		if file.Name() == ".git" {
+			continue
+		}
+
 		relPath, _ := filepath.Rel(".", filepath.Join(root, file.Name()))
-		if ignoreMatcher != nil && ignoreMatcher.MatchesPath(relPath) {
+		if shouldIgnore(relPath, ignoreMatchers) {
 			continue
 		}
 
@@ -48,7 +71,7 @@ func printTree(root string, prefix string, ignoreMatcher *gitignore.GitIgnore) {
 			} else {
 				newPrefix += "│   "
 			}
-			printTree(filepath.Join(root, file.Name()), newPrefix, ignoreMatcher)
+			printTree(filepath.Join(root, file.Name()), newPrefix, ignoreMatchers)
 		}
 	}
 }
