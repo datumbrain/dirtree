@@ -7,10 +7,12 @@ This package prints the directory tree of the current directory respecting your 
 Install the package dirtree
 
 ```bash
-go install dirtree
+go install github.com/datumbrain/dirtree@latest
 ```
 
 ## Usage
+
+Go to any directory and run the following command to print the directory tree
 
 ```bash
 dirtree
