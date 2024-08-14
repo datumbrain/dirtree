@@ -1,4 +1,4 @@
-# Print Directory Tree
+# dirtree
 
 This package prints the directory tree of the current directory respecting your `.gitignore` file.
 
