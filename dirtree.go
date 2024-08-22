@@ -15,6 +15,7 @@ func main() {
 	switch len(os.Args) {
 	case 1:
 		rootDir = "."
+		fmt.Println(".")
 	case 2:
 		rootDir = strings.Join(os.Args[1:2], "")
 		_, err := os.Stat(rootDir)
@@ -30,7 +31,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(".")
 	printTree(rootDir, "", nil)
 }
 
