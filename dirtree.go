@@ -4,15 +4,26 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
 func main() {
-	rootDir := "."
+	var rootDir string
+
+	if len(os.Args) == 2 {
+		rootDir = strings.Join(os.Args[1:2], "")
+	} else if len(os.Args) > 2 {
+		fmt.Printf("Invalid number of arguments")
+		os.Exit(1)
+	} else {
+		rootDir = "."
+	}
 
 	fmt.Println(".")
 	printTree(rootDir, "", nil)
+
 }
 
 func shouldIgnore(path string, ignoreMatchers []*gitignore.GitIgnore) bool {
