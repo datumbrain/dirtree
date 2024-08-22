@@ -12,18 +12,26 @@ import (
 func main() {
 	var rootDir string
 
-	if len(os.Args) == 2 {
-		rootDir = strings.Join(os.Args[1:2], "")
-	} else if len(os.Args) > 2 {
-		fmt.Printf("Invalid number of arguments")
-		os.Exit(1)
-	} else {
+	switch len(os.Args) {
+	case 1:
 		rootDir = "."
+	case 2:
+		rootDir = strings.Join(os.Args[1:2], "")
+		_, err := os.Stat(rootDir)
+		if os.IsNotExist(err) {
+			fmt.Println("File does not exist")
+			os.Exit(1)
+		}
+		if err != nil {
+			fmt.Printf("Error %v", err)
+		}
+	default:
+		fmt.Printf("Usage: dirtree [directory]")
+		os.Exit(1)
 	}
 
 	fmt.Println(".")
 	printTree(rootDir, "", nil)
-
 }
 
 func shouldIgnore(path string, ignoreMatchers []*gitignore.GitIgnore) bool {
