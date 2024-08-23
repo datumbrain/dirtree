@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	gitignore "github.com/sabhiram/go-gitignore"
 )
@@ -17,17 +16,18 @@ func main() {
 		rootDir = "."
 		fmt.Println(".")
 	case 2:
-		rootDir = strings.Join(os.Args[1:2], "")
+		rootDir = os.Args[1]
 		_, err := os.Stat(rootDir)
 		if os.IsNotExist(err) {
-			fmt.Println("File does not exist")
+			fmt.Println("directory does not exist")
 			os.Exit(1)
 		}
 		if err != nil {
-			fmt.Printf("Error %v", err)
+			fmt.Println(fmt.Errorf("error: %v", err))
+			os.Exit(1)
 		}
 	default:
-		fmt.Printf("Usage: dirtree [directory]")
+		fmt.Println("Usage: dirtree [directory]")
 		os.Exit(1)
 	}
 
