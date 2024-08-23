@@ -15,7 +15,7 @@ go install github.com/datumbrain/dirtree@latest
 Run the command with the path of the directory as a command line argument to print the directory tree of specified directory. If no argument is specified then the directory tree of the current directory will be printed.
 
 ```bash
-dirtree [directory]
+dirtree [directory ...]
 ```
 
 ## Authors
