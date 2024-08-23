@@ -9,9 +9,28 @@ import (
 )
 
 func main() {
-	rootDir := "."
+	var rootDir string
 
-	fmt.Println(".")
+	switch len(os.Args) {
+	case 1:
+		rootDir = "."
+		fmt.Println(".")
+	case 2:
+		rootDir = os.Args[1]
+		_, err := os.Stat(rootDir)
+		if os.IsNotExist(err) {
+			fmt.Println("directory does not exist")
+			os.Exit(1)
+		}
+		if err != nil {
+			fmt.Println(fmt.Errorf("error: %v", err))
+			os.Exit(1)
+		}
+	default:
+		fmt.Println("Usage: dirtree [directory]")
+		os.Exit(1)
+	}
+
 	printTree(rootDir, "", nil)
 }
 
