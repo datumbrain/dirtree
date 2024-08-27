@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/datumbrain/dirtree/internal/version"
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
@@ -17,21 +18,34 @@ func main() {
 		fmt.Println(".")
 	case 2:
 		rootDir = os.Args[1]
-		_, err := os.Stat(rootDir)
-		if os.IsNotExist(err) {
-			fmt.Println("directory does not exist")
+		if rootDir == "-v" || rootDir == "--version" {
+			PrintVersionInfo()
 			os.Exit(1)
-		}
-		if err != nil {
-			fmt.Println(fmt.Errorf("error: %v", err))
-			os.Exit(1)
+		} else {
+			_, err := os.Stat(rootDir)
+			if os.IsNotExist(err) {
+				fmt.Println("directory does not exist")
+				os.Exit(1)
+			}
+			if err != nil {
+				fmt.Println(fmt.Errorf("error: %v", err))
+				os.Exit(1)
+			}
 		}
 	default:
-		fmt.Println("Usage: dirtree [directory]")
+		fmt.Println("Usage: dirtree [directory | -v | --version]")
 		os.Exit(1)
 	}
 
 	printTree(rootDir, "", nil)
+
+}
+
+func PrintVersionInfo() {
+	versionInfo := version.Get()
+	fmt.Println(versionInfo.GitVersion)
+	fmt.Println(versionInfo.BuildDate)
+	fmt.Println(versionInfo.GitCommit)
 }
 
 func shouldIgnore(path string, ignoreMatchers []*gitignore.GitIgnore) bool {
