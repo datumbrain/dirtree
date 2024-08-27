@@ -5,5 +5,4 @@ GIT_COMMIT="$(git rev-parse HEAD)"
 #VERSION="$(git describe --tags --abbrev=0 | tr -d "\n")"
 
 
-go generate ./...
-go build -o bin/main -ldflags="-X 'github.com/dirtree/internal/version.buildDate=${BUILD_DATE}'" *.go
+go build -o bin/main -ldflags="-X 'github.com/dirtree/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/dirtree/internal/version.gitCommit=${GIT_COMMIT}'" *.go
