@@ -1,26 +1,49 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/fatih/color"
 	gitignore "github.com/sabhiram/go-gitignore"
+)
+
+var (
+	// Color configuration
+	useColor     bool
+	dirColor     *color.Color
+	fileColor    *color.Color
+	dotfileColor *color.Color
+	execColor    *color.Color
+	imageColor   *color.Color
+	docColor     *color.Color
 )
 
 // main is the entry point of the dirtree application.
 // It accepts an optional directory path as a command-line argument.
 // If no argument is provided, it defaults to the current directory.
 func main() {
+	// Define flags
+	maxDepth := flag.Int("L", 0, "Maximum depth of directory tree (0 = unlimited)")
+	flag.IntVar(maxDepth, "level", 0, "Maximum depth of directory tree (0 = unlimited)")
+	colorMode := flag.String("color", "auto", "Colorize output: auto, always, never")
+	flag.Parse()
+
+	// Configure colors based on flag and environment
+	configureColors(*colorMode)
+
+	// Get directory from remaining args
+	args := flag.Args()
 	var rootDir string
-	switch len(os.Args) {
-	case 1:
+
+	if len(args) == 0 {
 		rootDir = "."
-		fmt.Println(".")
-	case 2:
-		rootDir = os.Args[1]
+	} else if len(args) == 1 {
+		rootDir = args[0]
 		_, err := os.Stat(rootDir)
 		if os.IsNotExist(err) {
 			fmt.Println("directory does not exist")
@@ -30,11 +53,113 @@ func main() {
 			fmt.Printf("error: %v\n", err)
 			os.Exit(1)
 		}
-	default:
-		fmt.Println("Usage: dirtree [directory]")
+	} else {
+		fmt.Println("Usage: dirtree [options] [directory]")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	printTree(rootDir, "", nil)
+
+	fmt.Println(rootDir)
+	printTree(rootDir, "", nil, 0, *maxDepth)
+}
+
+// configureColors sets up color output based on the color mode and NO_COLOR environment variable.
+func configureColors(mode string) {
+	// Check NO_COLOR environment variable (https://no-color.org/)
+	if os.Getenv("NO_COLOR") != "" {
+		useColor = false
+		return
+	}
+
+	switch mode {
+	case "always":
+		useColor = true
+		color.NoColor = false
+	case "never":
+		useColor = false
+		color.NoColor = true
+	case "auto":
+		// Auto mode: use color if stdout is a terminal
+		fi, err := os.Stdout.Stat()
+		useColor = err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+		color.NoColor = !useColor
+	default:
+		fmt.Printf("Invalid color mode: %s (use auto, always, or never)\n", mode)
+		os.Exit(1)
+	}
+
+	if useColor {
+		// Define colors for different file types
+		dirColor = color.New(color.FgBlue, color.Bold)
+		fileColor = color.New(color.FgWhite)
+		dotfileColor = color.New(color.FgHiBlack)
+		execColor = color.New(color.FgGreen, color.Bold)
+		imageColor = color.New(color.FgMagenta)
+		docColor = color.New(color.FgCyan)
+	}
+}
+
+// getFileColor returns the appropriate color for a file based on its type and properties.
+func getFileColor(file os.DirEntry, fullPath string) *color.Color {
+	if !useColor {
+		return nil
+	}
+
+	// Directories
+	if file.IsDir() {
+		return dirColor
+	}
+
+	name := file.Name()
+
+	// Dotfiles
+	if strings.HasPrefix(name, ".") {
+		return dotfileColor
+	}
+
+	// Check if executable
+	info, err := os.Stat(fullPath)
+	if err == nil && info.Mode()&0111 != 0 {
+		return execColor
+	}
+
+	// Check file extension for specific types
+	ext := strings.ToLower(filepath.Ext(name))
+
+	// Image files
+	imageExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+		".bmp": true, ".svg": true, ".ico": true, ".webp": true,
+	}
+	if imageExts[ext] {
+		return imageColor
+	}
+
+	// Document files
+	docExts := map[string]bool{
+		".md": true, ".txt": true, ".pdf": true, ".doc": true,
+		".docx": true, ".rst": true, ".org": true,
+	}
+	if docExts[ext] {
+		return docColor
+	}
+
+	// Default to regular file color
+	return fileColor
+}
+
+// formatFileName formats a filename with the appropriate color.
+func formatFileName(file os.DirEntry, fullPath string) string {
+	name := file.Name()
+	if !useColor {
+		return name
+	}
+
+	fileColor := getFileColor(file, fullPath)
+	if fileColor != nil {
+		return fileColor.Sprint(name)
+	}
+	return name
 }
 
 // shouldIgnore checks if a given path should be ignored based on the provided gitignore matchers.
@@ -108,7 +233,13 @@ func sortFiles(files []os.DirEntry) []os.DirEntry {
 // printTree recursively prints the directory tree structure starting from the root directory.
 // It respects .gitignore patterns from the current directory and all parent directories.
 // The prefix parameter is used to build the ASCII tree structure (├──, └──, │).
-func printTree(root string, prefix string, parentMatchers []*gitignore.GitIgnore) {
+// The currentDepth parameter tracks how deep we are in the tree.
+// The maxDepth parameter limits recursion depth (0 = unlimited).
+func printTree(root string, prefix string, parentMatchers []*gitignore.GitIgnore, currentDepth int, maxDepth int) {
+	// Check if we've reached the maximum depth
+	if maxDepth > 0 && currentDepth >= maxDepth {
+		return
+	}
 	ignoreMatchers := loadIgnoreMatchers(root, parentMatchers)
 	files, err := os.ReadDir(root)
 	if err != nil {
@@ -132,10 +263,13 @@ func printTree(root string, prefix string, parentMatchers []*gitignore.GitIgnore
 	sortedFiles := sortFiles(filteredFiles)
 
 	for i, file := range sortedFiles {
+		fullPath := filepath.Join(root, file.Name())
+		formattedName := formatFileName(file, fullPath)
+
 		if i == len(sortedFiles)-1 {
-			fmt.Printf("%s└── %s\n", prefix, file.Name())
+			fmt.Printf("%s└── %s\n", prefix, formattedName)
 		} else {
-			fmt.Printf("%s├── %s\n", prefix, file.Name())
+			fmt.Printf("%s├── %s\n", prefix, formattedName)
 		}
 
 		if file.IsDir() {
@@ -145,7 +279,7 @@ func printTree(root string, prefix string, parentMatchers []*gitignore.GitIgnore
 			} else {
 				newPrefix += "│   "
 			}
-			printTree(filepath.Join(root, file.Name()), newPrefix, ignoreMatchers)
+			printTree(fullPath, newPrefix, ignoreMatchers, currentDepth+1, maxDepth)
 		}
 	}
 }

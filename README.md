@@ -11,6 +11,8 @@ A lightweight command-line utility that displays directory tree structures while
 - **Gitignore-Aware**: Automatically respects `.gitignore` files at all directory levels
 - **Hierarchical Patterns**: Inherits and combines gitignore rules from parent directories
 - **Smart Sorting**: Organizes output with directories first, then files, then dotfiles (all alphabetically sorted)
+- **Colorized Output**: Beautiful ANSI colors for directories, files, and file types with auto-detection
+- **Depth Limiting**: Control how deep to traverse with `-L` flag
 - **Clean Output**: Uses ASCII tree characters (├──, └──, │) for clear visual hierarchy
 - **Fast & Lightweight**: Single binary with minimal dependencies
 - **Cross-Platform**: Works on Linux, macOS, and Windows
@@ -41,16 +43,60 @@ Display the tree structure of the current directory:
 dirtree
 ```
 
-### Specify a Directory
+### Command-Line Options
 
-Display the tree structure of a specific directory:
+```bash
+dirtree [options] [directory]
 
+Options:
+  -L int
+        Maximum depth of directory tree (0 = unlimited)
+  -level int
+        Maximum depth of directory tree (0 = unlimited)
+  -color string
+        Colorize output: auto, always, never (default "auto")
+```
+
+### Examples
+
+**Specify a directory:**
 ```bash
 dirtree /path/to/directory
 ```
 
+**Limit depth to 2 levels:**
+```bash
+dirtree -L 2
+```
+
+**Show only top-level items:**
+```bash
+dirtree --level 1
+```
+
+**Force colored output:**
+```bash
+dirtree --color always
+```
+
+**Disable colors:**
+```bash
+dirtree --color never
+```
+
+**Combine options:**
+```bash
+dirtree --color always -L 3 /path/to/directory
+```
+
+**Respect NO_COLOR environment variable:**
+```bash
+NO_COLOR=1 dirtree
+```
+
 ### Example Output
 
+**Without colors:**
 ```
 .
 ├── cmd
@@ -66,6 +112,14 @@ dirtree /path/to/directory
 ├── README.md
 └── .gitignore
 ```
+
+**With colors** (uses different colors for directories, files, and file types):
+- Directories appear in **blue and bold**
+- Regular files appear in white
+- Dotfiles appear in gray
+- Markdown/documentation files appear in cyan
+- Image files appear in magenta
+- Executable files appear in green and bold
 
 ## How It Works
 
@@ -94,6 +148,35 @@ Files and directories are sorted in the following order:
 
 This ensures consistent, readable output across different systems.
 
+### Color Output
+
+dirtree uses intelligent color coding to make output easier to scan:
+
+- **Directories**: Blue and bold
+- **Regular files**: White
+- **Dotfiles**: Gray (dim)
+- **Executable files**: Green and bold
+- **Image files** (.png, .jpg, .gif, etc.): Magenta
+- **Documentation** (.md, .txt, .pdf, etc.): Cyan
+
+Color output respects:
+- `--color` flag (`auto`, `always`, `never`)
+- `NO_COLOR` environment variable ([no-color.org](https://no-color.org/))
+- Terminal capabilities (auto-detection in `auto` mode)
+
+### Depth Limiting
+
+Control traversal depth with the `-L` or `--level` flag:
+
+```bash
+dirtree -L 2    # Only show 2 levels deep
+```
+
+This is useful for:
+- Getting a quick overview of large projects
+- Focusing on top-level structure
+- Avoiding deeply nested directories
+
 ## Use Cases
 
 - **Documentation**: Generate directory structure for README files or documentation
@@ -107,10 +190,13 @@ This ensures consistent, readable output across different systems.
 | Feature | dirtree | tree |
 |---------|---------|------|
 | Respects .gitignore | ✅ Yes | ❌ No |
+| Hierarchical gitignore | ✅ Yes | N/A |
+| Colorized output | ✅ Yes | ✅ Yes |
+| Depth limiting | ✅ Yes (-L) | ✅ Yes (-L) |
 | Cross-platform | ✅ Yes | ⚠️ Limited |
 | Installation | Go install | OS package manager |
 | Size | ~2MB | Varies |
-| Hierarchical gitignore | ✅ Yes | N/A |
+| NO_COLOR support | ✅ Yes | ⚠️ Varies |
 
 ## Contributing
 
@@ -163,4 +249,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Uses [go-gitignore](https://github.com/sabhiram/go-gitignore) for gitignore pattern matching
+- Uses [fatih/color](https://github.com/fatih/color) for cross-platform colored output
 - Inspired by the Unix `tree` command with Git-awareness added

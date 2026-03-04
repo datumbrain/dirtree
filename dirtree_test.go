@@ -127,7 +127,7 @@ func TestSortFiles(t *testing.T) {
 			want: []string{"src", "main.go"},
 		},
 		{
-			name: "empty input",
+			name:  "empty input",
 			input: []os.DirEntry{},
 			want:  []string{},
 		},
@@ -232,15 +232,15 @@ func TestPrintTreeIntegration(t *testing.T) {
 
 	// Create test files and directories
 	testStructure := map[string]bool{
-		"file1.txt":      false,
-		"file2.go":       false,
-		".gitignore":     false,
-		"src":            true,
-		"src/main.go":    false,
-		"src/helper.go":  false,
-		"build":          true,
-		"build/out.bin":  false,
-		".env":           false,
+		"file1.txt":     false,
+		"file2.go":      false,
+		".gitignore":    false,
+		"src":           true,
+		"src/main.go":   false,
+		"src/helper.go": false,
+		"build":         true,
+		"build/out.bin": false,
+		".env":          false,
 	}
 
 	for path, isDir := range testStructure {
@@ -278,7 +278,7 @@ func TestPrintTreeIntegration(t *testing.T) {
 				t.Errorf("printTree panicked: %v", r)
 			}
 		}()
-		printTree(tmpDir, "", nil)
+		printTree(tmpDir, "", nil, 0, 0)
 	})
 
 	// Test with non-existent directory (should handle error gracefully)
@@ -288,8 +288,173 @@ func TestPrintTreeIntegration(t *testing.T) {
 				t.Errorf("printTree panicked on invalid directory: %v", r)
 			}
 		}()
-		printTree("/nonexistent/path/that/should/not/exist/"+time.Now().String(), "", nil)
+		printTree("/nonexistent/path/that/should/not/exist/"+time.Now().String(), "", nil, 0, 0)
 	})
+}
+
+func TestPrintTreeDepthLimiting(t *testing.T) {
+	// Create a test directory structure with multiple levels
+	tmpDir := t.TempDir()
+
+	// Create a 4-level deep structure
+	testStructure := map[string]bool{
+		"level1":                    true,
+		"level1/level2":             true,
+		"level1/level2/level3":      true,
+		"level1/level2/level3/file": false,
+	}
+
+	for path, isDir := range testStructure {
+		fullPath := filepath.Join(tmpDir, path)
+		if isDir {
+			err := os.MkdirAll(fullPath, 0755)
+			if err != nil {
+				t.Fatalf("Failed to create directory %s: %v", path, err)
+			}
+		} else {
+			dir := filepath.Dir(fullPath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatalf("Failed to create parent directory %s: %v", dir, err)
+			}
+			err := os.WriteFile(fullPath, []byte("test content"), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create file %s: %v", path, err)
+			}
+		}
+	}
+
+	tests := []struct {
+		name     string
+		maxDepth int
+		desc     string
+	}{
+		{"unlimited depth", 0, "should print all levels"},
+		{"depth 1", 1, "should print only top level"},
+		{"depth 2", 2, "should print 2 levels"},
+		{"depth 3", 3, "should print 3 levels"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("printTree panicked with maxDepth=%d: %v", tt.maxDepth, r)
+				}
+			}()
+			printTree(tmpDir, "", nil, 0, tt.maxDepth)
+		})
+	}
+}
+
+func TestGetFileColor(t *testing.T) {
+	// Create temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Create test files
+	regularFile := filepath.Join(tmpDir, "test.txt")
+	os.WriteFile(regularFile, []byte("test"), 0644)
+
+	dotFile := filepath.Join(tmpDir, ".hidden")
+	os.WriteFile(dotFile, []byte("test"), 0644)
+
+	imageFile := filepath.Join(tmpDir, "image.png")
+	os.WriteFile(imageFile, []byte("test"), 0644)
+
+	docFile := filepath.Join(tmpDir, "doc.md")
+	os.WriteFile(docFile, []byte("test"), 0644)
+
+	// Enable colors for testing
+	oldUseColor := useColor
+	defer func() { useColor = oldUseColor }()
+	useColor = true
+	configureColors("always")
+
+	tests := []struct {
+		name         string
+		fileName     string
+		expectedType string
+	}{
+		{"regular file", "test.txt", "file"},
+		{"dotfile", ".hidden", "dotfile"},
+		{"image file", "image.png", "image"},
+		{"document file", "doc.md", "doc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fullPath := filepath.Join(tmpDir, tt.fileName)
+			entries, _ := os.ReadDir(tmpDir)
+			for _, entry := range entries {
+				if entry.Name() == tt.fileName {
+					color := getFileColor(entry, fullPath)
+					if color == nil {
+						t.Error("Expected color to be set, got nil")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestConfigureColors(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		noColor  string
+		expected bool
+	}{
+		{"always mode", "always", "", true},
+		{"never mode", "never", "", false},
+		{"NO_COLOR env set", "always", "1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldNoColor := os.Getenv("NO_COLOR")
+			defer func() {
+				if oldNoColor == "" {
+					os.Unsetenv("NO_COLOR")
+				} else {
+					os.Setenv("NO_COLOR", oldNoColor)
+				}
+			}()
+
+			if tt.noColor != "" {
+				os.Setenv("NO_COLOR", tt.noColor)
+			} else {
+				os.Unsetenv("NO_COLOR")
+			}
+
+			configureColors(tt.mode)
+
+			if useColor != tt.expected {
+				t.Errorf("Expected useColor to be %v, got %v", tt.expected, useColor)
+			}
+		})
+	}
+}
+
+func TestFormatFileName(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	os.WriteFile(testFile, []byte("test"), 0644)
+
+	// Test with colors disabled
+	useColor = false
+	entries, _ := os.ReadDir(tmpDir)
+	result := formatFileName(entries[0], testFile)
+	if result != "test.txt" {
+		t.Errorf("Expected plain filename, got %s", result)
+	}
+
+	// Test with colors enabled
+	useColor = true
+	configureColors("always")
+	result = formatFileName(entries[0], testFile)
+	// Should contain ANSI codes
+	if result == "test.txt" {
+		t.Error("Expected colored output, got plain text")
+	}
 }
 
 func TestMainFunction(t *testing.T) {
