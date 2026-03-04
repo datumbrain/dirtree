@@ -253,7 +253,9 @@ func TestPrintTreeIntegration(t *testing.T) {
 		} else {
 			dir := filepath.Dir(fullPath)
 			if dir != tmpDir {
-				os.MkdirAll(dir, 0755)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatalf("Failed to create parent directory %s: %v", dir, err)
+				}
 			}
 			err := os.WriteFile(fullPath, []byte("test content"), 0644)
 			if err != nil {
