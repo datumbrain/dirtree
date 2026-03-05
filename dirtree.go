@@ -40,10 +40,10 @@ type TreeStats struct {
 
 // TreeData holds the complete tree structure and metadata.
 type TreeData struct {
-	RootPath string       `json:"root"`
-	Depth    int          `json:"depth"`
-	Stats    TreeStats    `json:"stats"`
-	Nodes    []*TreeNode  `json:"nodes"`
+	RootPath string      `json:"root"`
+	Depth    int         `json:"depth"`
+	Stats    TreeStats   `json:"stats"`
+	Nodes    []*TreeNode `json:"nodes"`
 }
 
 // main is the entry point of the dirtree application.
