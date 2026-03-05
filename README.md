@@ -36,6 +36,11 @@ cd dirtree
 go build
 ```
 
+After building, install system-wide:
+```bash
+go install
+```
+
 ## Usage
 
 ### Basic Usage
