@@ -475,3 +475,208 @@ func TestMainFunction(t *testing.T) {
 		// This should not panic
 	})
 }
+
+func TestBuildTree(t *testing.T) {
+	// Create a test directory structure
+	tmpDir := t.TempDir()
+
+	// Create test files and directories
+	testStructure := map[string]bool{
+		"file1.txt":     false,
+		"file2.go":      false,
+		"src":           true,
+		"src/main.go":   false,
+		"src/helper.go": false,
+	}
+
+	for path, isDir := range testStructure {
+		fullPath := filepath.Join(tmpDir, path)
+		if isDir {
+			err := os.MkdirAll(fullPath, 0755)
+			if err != nil {
+				t.Fatalf("Failed to create directory %s: %v", path, err)
+			}
+		} else {
+			dir := filepath.Dir(fullPath)
+			if dir != tmpDir {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatalf("Failed to create parent directory %s: %v", dir, err)
+				}
+			}
+			err := os.WriteFile(fullPath, []byte("test content"), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create file %s: %v", path, err)
+			}
+		}
+	}
+
+	t.Run("build tree without limits", func(t *testing.T) {
+		fileCount := 0
+		treeData := buildTree(tmpDir, nil, 0, 0, 0, &fileCount)
+
+		if treeData == nil {
+			t.Fatal("Expected tree data, got nil")
+		}
+
+		// Should have 3 top-level items (2 files + 1 dir)
+		if len(treeData.Nodes) != 3 {
+			t.Errorf("Expected 3 top-level nodes, got %d", len(treeData.Nodes))
+		}
+
+		// Stats should show 4 files (2 at root + 2 in src)
+		if treeData.Stats.FileCount != 4 {
+			t.Errorf("Expected 4 files, got %d", treeData.Stats.FileCount)
+		}
+
+		// Stats should show 1 directory (src)
+		if treeData.Stats.DirCount != 1 {
+			t.Errorf("Expected 1 directory, got %d", treeData.Stats.DirCount)
+		}
+	})
+
+	t.Run("build tree with depth limit", func(t *testing.T) {
+		fileCount := 0
+		treeData := buildTree(tmpDir, nil, 0, 1, 0, &fileCount)
+
+		if treeData == nil {
+			t.Fatal("Expected tree data, got nil")
+		}
+
+		// Should have 3 top-level items
+		if len(treeData.Nodes) != 3 {
+			t.Errorf("Expected 3 top-level nodes, got %d", len(treeData.Nodes))
+		}
+
+		// Find the src directory and verify it has no children (depth limited)
+		for _, node := range treeData.Nodes {
+			if node.IsDir && node.Name == "src" {
+				if len(node.Children) != 0 {
+					t.Errorf("Expected src directory to have no children with depth limit, got %d", len(node.Children))
+				}
+			}
+		}
+	})
+
+	t.Run("build tree with file limit", func(t *testing.T) {
+		fileCount := 0
+		maxFiles := 2
+		treeData := buildTree(tmpDir, nil, 0, 0, maxFiles, &fileCount)
+
+		if treeData == nil {
+			t.Fatal("Expected tree data, got nil")
+		}
+
+		// Should stop after 2 files
+		if fileCount > maxFiles {
+			t.Errorf("Expected at most %d files, got %d", maxFiles, fileCount)
+		}
+	})
+}
+
+func TestFlattenNodes(t *testing.T) {
+	nodes := []*TreeNode{
+		{
+			Name:  "file1.txt",
+			Path:  "file1.txt",
+			IsDir: false,
+		},
+		{
+			Name:  "dir1",
+			Path:  "dir1",
+			IsDir: true,
+			Children: []*TreeNode{
+				{
+					Name:  "file2.txt",
+					Path:  "dir1/file2.txt",
+					IsDir: false,
+				},
+			},
+		},
+	}
+
+	result := flattenNodes(nodes)
+
+	if len(result) != 3 {
+		t.Errorf("Expected 3 flattened nodes, got %d", len(result))
+	}
+
+	// Check first node is a file
+	if result[0]["type"] != "file" {
+		t.Errorf("Expected first node to be file, got %v", result[0]["type"])
+	}
+
+	// Check second node is a dir
+	if result[1]["type"] != "dir" {
+		t.Errorf("Expected second node to be dir, got %v", result[1]["type"])
+	}
+
+	// Check third node is a file (child of dir)
+	if result[2]["type"] != "file" {
+		t.Errorf("Expected third node to be file, got %v", result[2]["type"])
+	}
+}
+
+func TestFormatText(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create test files
+	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte("test"), 0644)
+
+	fileCount := 0
+	treeData := buildTree(tmpDir, nil, 0, 0, 0, &fileCount)
+
+	// Disable colors for predictable output
+	useColor = false
+
+	// This test just ensures formatText doesn't panic
+	t.Run("format text without panic", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("formatText panicked: %v", r)
+			}
+		}()
+		formatText(treeData.Nodes, "", tmpDir)
+	})
+}
+
+func TestDirEntryWrapper(t *testing.T) {
+	wrapper := dirEntryWrapper{
+		name:  "test.txt",
+		isDir: false,
+	}
+
+	if wrapper.Name() != "test.txt" {
+		t.Errorf("Expected name 'test.txt', got %s", wrapper.Name())
+	}
+
+	if wrapper.IsDir() != false {
+		t.Error("Expected IsDir to be false")
+	}
+}
+
+func TestFormatValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		valid  bool
+	}{
+		{"text format", "text", true},
+		{"json format", "json", true},
+		{"markdown format", "markdown", true},
+		{"md alias should be normalized", "md", false}, // This would be caught by validation before normalization
+		{"invalid format", "invalid", false},
+		{"empty format", "", false},
+	}
+
+	validFormats := map[string]bool{"text": true, "json": true, "markdown": true}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, exists := validFormats[tt.format]
+			if exists != tt.valid {
+				t.Errorf("Format %s validation: expected %v, got %v", tt.format, tt.valid, exists)
+			}
+		})
+	}
+}

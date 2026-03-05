@@ -8,11 +8,14 @@ A lightweight command-line utility that displays directory tree structures while
 
 ## Features
 
+- **Multiple Output Formats**: Text (traditional), JSON (machine-readable), and Markdown (LLM-optimized)
+- **LLM-Optimized Mode**: Special `--llm` flag for AI agent consumption with sensible defaults
 - **Gitignore-Aware**: Automatically respects `.gitignore` files at all directory levels
 - **Hierarchical Patterns**: Inherits and combines gitignore rules from parent directories
 - **Smart Sorting**: Organizes output with directories first, then files, then dotfiles (all alphabetically sorted)
 - **Colorized Output**: Beautiful ANSI colors for directories, files, and file types with auto-detection
 - **Depth Limiting**: Control how deep to traverse with `-L` flag
+- **File Count Limiting**: Limit total files displayed with `--max-files` flag
 - **Clean Output**: Uses ASCII tree characters (├──, └──, │) for clear visual hierarchy
 - **Fast & Lightweight**: Single binary with minimal dependencies
 - **Cross-Platform**: Works on Linux, macOS, and Windows
@@ -55,6 +58,14 @@ Options:
         Maximum depth of directory tree (0 = unlimited)
   -color string
         Colorize output: auto, always, never (default "auto")
+  -format string
+        Output format: text, json, markdown (or md) (default "text")
+  -o string
+        Output format: text, json, markdown (or md) (default "text")
+  -max-files int
+        Maximum number of files to display (0 = unlimited)
+  -llm
+        LLM-optimized output (equivalent to: --format markdown --level 3 --max-files 200)
 ```
 
 ### Examples
@@ -94,6 +105,35 @@ dirtree --color always -L 3 /path/to/directory
 NO_COLOR=1 dirtree
 ```
 
+**JSON output for programmatic use:**
+```bash
+dirtree --format json
+# or using the short flag
+dirtree -o json
+```
+
+**Markdown output for documentation:**
+```bash
+dirtree --format markdown
+# or using the alias
+dirtree -o md
+```
+
+**LLM-optimized mode (markdown, depth 3, max 200 files):**
+```bash
+dirtree --llm
+```
+
+**Limit number of files displayed:**
+```bash
+dirtree --max-files 50
+```
+
+**Combine format with other options:**
+```bash
+dirtree --format json -L 2 --max-files 100
+```
+
 ### Example Output
 
 **Without colors:**
@@ -120,6 +160,107 @@ NO_COLOR=1 dirtree
 - Markdown/documentation files appear in cyan
 - Image files appear in magenta
 - Executable files appear in green and bold
+
+## Output Formats
+
+dirtree supports three output formats to suit different use cases:
+
+### Text Format (Default)
+
+Traditional tree output with ASCII art. Perfect for terminal display and human reading.
+
+```bash
+dirtree --format text
+```
+
+Output:
+```
+.
+├── cmd
+│   └── main.go
+├── pkg
+│   └── api
+│       └── handler.go
+├── README.md
+└── go.mod
+```
+
+### JSON Format
+
+Machine-readable format ideal for programmatic processing and integration with other tools.
+
+```bash
+dirtree --format json
+```
+
+Output:
+```json
+{
+  "root": ".",
+  "depth": 0,
+  "stats": {
+    "files": 3,
+    "dirs": 3
+  },
+  "nodes": [
+    {"path": "cmd", "type": "dir"},
+    {"path": "cmd/main.go", "type": "file"},
+    {"path": "pkg", "type": "dir"},
+    {"path": "pkg/api", "type": "dir"},
+    {"path": "pkg/api/handler.go", "type": "file"},
+    {"path": "README.md", "type": "file"},
+    {"path": "go.mod", "type": "file"}
+  ]
+}
+```
+
+### Markdown Format
+
+Optimized for documentation and LLM consumption. Groups files by directory with clear sections.
+
+```bash
+dirtree --format markdown
+```
+
+Output:
+```markdown
+# Directory Structure: .
+
+## Files
+### Root Directory
+- `README.md`
+- `go.mod`
+
+### cmd/
+- `main.go`
+
+### pkg/api/
+- `handler.go`
+
+## Directories
+- `cmd/`
+- `pkg/`
+- `pkg/api/`
+
+---
+**Total:** 3 files, 3 directories
+```
+
+### LLM Mode
+
+Special mode optimized for AI agents with sensible defaults:
+
+```bash
+dirtree --llm
+```
+
+This is equivalent to: `--format markdown --level 3 --max-files 200`
+
+Benefits for LLM usage:
+- Markdown format is easier for LLMs to parse
+- Depth limit (3) prevents context overflow
+- File limit (200) keeps output manageable
+- Grouped structure helps with understanding project organization
 
 ## How It Works
 
@@ -179,11 +320,14 @@ This is useful for:
 
 ## Use Cases
 
-- **Documentation**: Generate directory structure for README files or documentation
+- **Documentation**: Generate directory structure for README files (Markdown format) or documentation
+- **LLM Context**: Feed project structure to AI assistants with `--llm` flag
 - **Code Review**: Quickly understand project organization
 - **Project Planning**: Visualize codebase structure before making changes
 - **Onboarding**: Help new team members understand project layout
 - **Git-Aware Exploration**: See only tracked/relevant files, ignoring build artifacts
+- **CI/CD Integration**: Use JSON format for automated project analysis
+- **Build Tools**: Parse JSON output for custom tooling and scripts
 
 ## Comparison with `tree` Command
 
@@ -191,6 +335,11 @@ This is useful for:
 |---------|---------|------|
 | Respects .gitignore | ✅ Yes | ❌ No |
 | Hierarchical gitignore | ✅ Yes | N/A |
+| Multiple output formats | ✅ Yes (text/json/md) | ⚠️ Limited |
+| LLM-optimized mode | ✅ Yes | ❌ No |
+| JSON output | ✅ Yes | ⚠️ Limited |
+| Markdown output | ✅ Yes | ❌ No |
+| File count limiting | ✅ Yes | ❌ No |
 | Colorized output | ✅ Yes | ✅ Yes |
 | Depth limiting | ✅ Yes (-L) | ✅ Yes (-L) |
 | Cross-platform | ✅ Yes | ⚠️ Limited |
